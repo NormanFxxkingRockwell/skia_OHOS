@@ -1,26 +1,56 @@
-import { hilog } from '@kit.PerformanceAnalysisKit';
-import testNapi from 'libentry.so';
-
-const DOMAIN = 0x0000;
+import XComponentContext from '../interface/XComponentContext';
 
 @Entry
 @Component
 struct Index {
-  @State message: string = 'Hello World';
+  private controller: XComponentController = new XComponentController();
+  private xComponentContext?: XComponentContext = undefined;
+  @State status: string = '等待 XComponent 初始化';
 
   build() {
-    Row() {
+    Column({ space: 16 }) {
+      Text('Skia XComponent Demo')
+        .fontSize(24)
+        .fontWeight(FontWeight.Bold)
+
+      Text(this.status)
+        .fontSize(14)
+        .fontColor('#5F5F5F')
+
+      XComponent({
+        id: 'skia_surface',
+        type: XComponentType.SURFACE,
+        controller: this.controller,
+        libraryname: 'entry'
+      })
+        .onLoad((xComponentContext) => {
+          this.xComponentContext = xComponentContext as XComponentContext;
+          this.xComponentContext.registerSurface();
+          this.xComponentContext.renderNow();
+          this.status = 'XComponent 已加载，已请求 native 注册';
+        })
+        .width('100%')
+        .height('78%')
+        .backgroundColor('#101820')
+
       Column() {
-        Text(this.message)
-          .fontSize($r('app.float.page_text_font_size'))
-          .fontWeight(FontWeight.Bold)
+        Button('重新渲染')
+          .width('100%')
           .onClick(() => {
-            this.message = 'Welcome';
-            hilog.info(DOMAIN, 'testTag', 'Test NAPI 2 + 3 = %{public}d', testNapi.add(2, 3));
+            this.xComponentContext?.registerSurface();
+            this.xComponentContext?.renderNow();
+            this.status = '已请求 native 侧重绘';
           })
+
+        Text('当前路径: XComponent -> NativeWindow/EGL -> Skia.so CPU Raster -> GL 纹理显示')
+          .fontSize(13)
+          .fontColor('#7A7A7A')
       }
       .width('100%')
+      .padding({ bottom: 12 })
     }
+    .width('100%')
     .height('100%')
+    .padding(16)
   }
 }
