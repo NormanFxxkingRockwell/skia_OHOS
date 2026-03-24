@@ -1,0 +1,57 @@
+{
+  "app": {
+    "signingConfigs": [
+      {
+        "name": "default",
+        "type": "HarmonyOS",
+        "material": {
+          "certpath": "C:\\Users\\aoqiduan\\.ohos\\config\\default_skia_OHOS_EW4V8QL_ErgoD0eY6Px77KWRua8gGOlfrrsKZfdW_A4=.cer",
+          "keyAlias": "debugKey",
+          "keyPassword": "0000001BD462769C03EB8930870771BD7A208AA88D8573DC5B40515EB1FEC194ED2FD38890F6EBF6004A7F",
+          "profile": "C:\\Users\\aoqiduan\\.ohos\\config\\default_skia_OHOS_EW4V8QL_ErgoD0eY6Px77KWRua8gGOlfrrsKZfdW_A4=.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "C:\\Users\\aoqiduan\\.ohos\\config\\default_skia_OHOS_EW4V8QL_ErgoD0eY6Px77KWRua8gGOlfrrsKZfdW_A4=.p12",
+          "storePassword": "0000001BBB0AE9479638CEBB4528EEB4E3D118D6756ED25BCC3D45479DE92692BC091F5EA059B45200978F"
+        }
+      }
+    ],
+    "products": [
+      {
+        "name": "default",
+        "signingConfig": "default",
+        "targetSdkVersion": "5.1.1(19)",
+        "compatibleSdkVersion": "5.1.1(19)",
+        "runtimeOS": "HarmonyOS",
+        "buildOption": {
+          "nativeCompiler": "BiSheng",
+          "strictMode": {
+            "caseSensitiveCheck": true,
+            "useNormalizedOHMUrl": true
+          }
+        }
+      }
+    ],
+    "buildModeSet": [
+      {
+        "name": "debug",
+      },
+      {
+        "name": "release"
+      }
+    ]
+  },
+  "modules": [
+    {
+      "name": "entry",
+      "srcPath": "./entry",
+      "targets": [
+        {
+          "name": "default",
+          "applyToProducts": [
+            "default"
+          ]
+        }
+      ]
+    }
+  ]
+}
