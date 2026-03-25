@@ -6,6 +6,11 @@ set(NATIVERENDER_ROOT_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 set(SKIA_ROOT_DIR ${NATIVERENDER_ROOT_PATH}/../../../../skia)
 set(SKIA_INCLUDE_DIR ${SKIA_ROOT_DIR})
 set(SKIA_LIB_DIR ${SKIA_ROOT_DIR}/prebuilt/${CMAKE_OHOS_ARCH_ABI})
+set(SKIA_SHAPER_LIB ${SKIA_LIB_DIR}/libskshaper.a)
+set(SKIA_SKUNICODE_CORE_LIB ${SKIA_LIB_DIR}/libskunicode_core.a)
+set(SKIA_SKUNICODE_ICU_LIB ${SKIA_LIB_DIR}/libskunicode_icu.a)
+set(SKIA_HARFBUZZ_LIB ${SKIA_LIB_DIR}/libharfbuzz.a)
+set(SKIA_ICU_LIB ${SKIA_LIB_DIR}/libicu.a)
 
 if(DEFINED PACKAGE_FIND_FILE)
     include(${PACKAGE_FIND_FILE})
@@ -28,4 +33,9 @@ target_link_libraries(entry PUBLIC
                       libEGL.so
                       libGLESv3.so
                       libhilog_ndk.z.so
-                      skia)
+                      skia
+                      ${SKIA_SHAPER_LIB}
+                      ${SKIA_SKUNICODE_CORE_LIB}
+                      ${SKIA_SKUNICODE_ICU_LIB}
+                      ${SKIA_HARFBUZZ_LIB}
+                      ${SKIA_ICU_LIB})

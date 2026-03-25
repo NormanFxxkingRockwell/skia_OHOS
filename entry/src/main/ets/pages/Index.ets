@@ -27,7 +27,7 @@ struct Index {
           this.xComponentContext = xComponentContext as XComponentContext;
           this.xComponentContext.registerSurface();
           this.xComponentContext.renderNow();
-          this.status = 'XComponent 已加载，已请求 native GPU 文本渲染';
+          this.status = 'XComponent 已加载，已请求 native GPU shaping 文本渲染';
         })
         .width('100%')
         .height('78%')
@@ -39,10 +39,10 @@ struct Index {
           .onClick(() => {
             this.xComponentContext?.registerSurface();
             this.xComponentContext?.renderNow();
-            this.status = '已请求 native 侧重绘文本场景';
+            this.status = '已请求 native 侧重绘 shaping 文本场景';
           })
 
-        Text('当前路径: XComponent -> NativeWindow/EGL -> Skia GPU direct rendering -> /system/fonts')
+        Text('当前路径: XComponent -> NativeWindow/EGL -> Skia GPU direct rendering -> HarfBuzz/ICU shaping')
           .fontSize(13)
           .fontColor('#7A7A7A')
       }

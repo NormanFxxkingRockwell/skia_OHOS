@@ -20,12 +20,18 @@
 #include "include/core/SkPaint.h"
 #include "include/core/SkSurface.h"
 #include "include/core/SkSurfaceProps.h"
+#include "include/core/SkTextBlob.h"
 #include "include/gpu/ganesh/GrBackendSurface.h"
 #include "include/gpu/ganesh/GrDirectContext.h"
 #include "include/gpu/ganesh/SkSurfaceGanesh.h"
 #include "include/gpu/ganesh/gl/GrGLBackendSurface.h"
 #include "include/gpu/ganesh/gl/GrGLDirectContext.h"
 #include "include/ports/SkFontMgr_directory.h"
+#include "modules/skshaper/include/SkShaper.h"
+#include "modules/skshaper/include/SkShaper_harfbuzz.h"
+#include "modules/skshaper/include/SkShaper_skunicode.h"
+#include "modules/skunicode/include/SkUnicode.h"
+#include "modules/skunicode/include/SkUnicode_icu.h"
 
 namespace {
 
@@ -95,6 +101,79 @@ bool EnsureTypeface(RendererState& state)
     OH_LOG_Print(LOG_APP, LOG_INFO, APP_LOG_DOMAIN, APP_LOG_TAG,
         "font manager ready families=%{public}d font=%{public}s", state.fontMgr->countFamilies(), PREFERRED_SC_FONT);
     return true;
+}
+
+sk_sp<SkTextBlob> MakeShapedBlob(sk_sp<SkFontMgr> fontMgr,
+                                 sk_sp<SkTypeface> typeface,
+                                 const char* text,
+                                 SkScalar fontSize)
+{
+    if (!fontMgr || !typeface || !text) {
+        return nullptr;
+    }
+
+    const size_t textBytes = strlen(text);
+    if (textBytes == 0) {
+        return nullptr;
+    }
+
+    sk_sp<SkUnicode> unicode = SkUnicodes::ICU::Make();
+    if (!unicode) {
+        return nullptr;
+    }
+
+    auto shaper = SkShapers::HB::ShaperDrivenWrapper(unicode, fontMgr);
+    if (!shaper) {
+        return nullptr;
+    }
+
+    SkFont font(typeface, fontSize);
+    font.setSubpixel(true);
+    font.setEdging(SkFont::Edging::kSubpixelAntiAlias);
+
+    std::unique_ptr<SkShaper::BiDiRunIterator> bidi =
+        SkShapers::unicode::BidiRunIterator(unicode, text, textBytes, 0xfe);
+    if (!bidi) {
+        bidi = std::make_unique<SkShaper::TrivialBiDiRunIterator>(0xfe, textBytes);
+    }
+    if (!bidi) {
+        return nullptr;
+    }
+
+    std::unique_ptr<SkShaper::LanguageRunIterator> language =
+        std::make_unique<SkShaper::TrivialLanguageRunIterator>("zh-CN", textBytes);
+    if (!language) {
+        return nullptr;
+    }
+
+    const SkFourByteTag undeterminedScript = SkSetFourByteTag('Z', 'y', 'y', 'y');
+    std::unique_ptr<SkShaper::ScriptRunIterator> script =
+        SkShapers::HB::ScriptRunIterator(text, textBytes, undeterminedScript);
+    if (!script) {
+        script = std::make_unique<SkShaper::TrivialScriptRunIterator>(undeterminedScript, textBytes);
+    }
+    if (!script) {
+        return nullptr;
+    }
+
+    std::unique_ptr<SkShaper::FontRunIterator> fontRuns =
+        SkShaper::MakeFontMgrRunIterator(text, textBytes, font, fontMgr);
+    if (!fontRuns) {
+        return nullptr;
+    }
+
+    SkTextBlobBuilderRunHandler builder(text, { 0.0f, 0.0f });
+    shaper->shape(text,
+                  textBytes,
+                  *fontRuns,
+                  *bidi,
+                  *script,
+                  *language,
+                  nullptr,
+                  0,
+                  1200.0f,
+                  &builder);
+    return builder.makeBlob();
 }
 
 bool RecreateSkSurface(RendererState& state)
@@ -314,13 +393,23 @@ void DrawGpuScene(RendererState& state)
         labelFont.setSubpixel(true);
         canvas->drawString(label, padding + 36.0f, y, labelFont, labelPaint);
 
-        SkFont sampleFont(face ? face : state.typeface, std::max(28.0f, hf * 0.035f));
-        sampleFont.setSubpixel(true);
-        sampleFont.setEdging(SkFont::Edging::kSubpixelAntiAlias);
-        canvas->drawString(u8"\u4e2d\u6587\u5b57\u4f53\u6e32\u67d3\u9a8c\u8bc1 ABC 123",
+        const SkScalar sampleFontSize = std::max(28.0f, hf * 0.035f);
+        sk_sp<SkTextBlob> blob = MakeShapedBlob(state.fontMgr,
+                                                face ? face : state.typeface,
+                                                u8"\u4e2d\u6587\u5b57\u4f53\u6e32\u67d3\u9a8c\u8bc1 ABC 123",
+                                                sampleFontSize);
+        if (blob) {
+            canvas->drawTextBlob(blob.get(), padding + 36.0f, y + 34.0f, bodyPaint);
+            return;
+        }
+
+        SkFont fallbackFont(face ? face : state.typeface, sampleFontSize);
+        fallbackFont.setSubpixel(true);
+        fallbackFont.setEdging(SkFont::Edging::kSubpixelAntiAlias);
+        canvas->drawString("shaping unavailable",
                            padding + 36.0f,
                            y + 34.0f,
-                           sampleFont,
+                           fallbackFont,
                            bodyPaint);
     };
 
