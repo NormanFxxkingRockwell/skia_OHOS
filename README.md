@@ -1,4 +1,4 @@
-# skia_OHOS
+﻿# skia_OHOS
 
 ## 项目概览
 
@@ -44,6 +44,15 @@ surface created size=2030x986 ready=1
 RenderFrame finished frame=0 mode=gpu_direct
 RenderFrame finished frame=1 mode=gpu_direct
 ```
+
+此外，`Phase 3` 的第一轮文本链路已经完成最小闭环验证：
+
+```text
+font_families=235
+pixel_checksum=708586963486131855
+```
+
+这表示当前 `Skia` 已经可以在 HarmonyOS 设备上从 `/system/fonts` 加载系统字体目录，并完成最小文本渲染与像素校验。
 
 ## Skia 适配点
 
@@ -226,6 +235,63 @@ RenderFrame finished frame=1 mode=gpu_direct
 - 更完整的 GPU 后端验证样例
 - 更高层的窗口/图形栈集成能力
 
+## 平台适配对照表
+
+下面这张表的目标是回答两个问题：
+
+- Linux 和 Android 已经做了哪些源码级平台适配
+- OHOS 当前已经做到哪一步，还缺哪些真正进入 `Skia src/` 的平台适配
+
+| 适配维度 | Linux 现状 | Android 现状 | OHOS 当前已实现 | OHOS 尚未实现 |
+|---|---|---|---|---|
+| 平台识别与 feature matrix | 已有稳定平台分支；默认启用 `freetype`、`fontconfig`、`x11`、部分 `perfetto` | 已有稳定平台分支；默认启用 Android 相关字体、NDK、`EGL` 路线 | 已建立基础 `OHOS` profile；已从 Linux 桌面分支里剥离 `x11`、`fontconfig`、`perfetto` | 还没有形成像 Linux / Android 那样长期稳定、覆盖完整能力集的独立平台矩阵 |
+| 字体主机实现 | 基于 `freetype + fontconfig`，已有完整桌面字体发现路径 | 有 Android 专用 font manager 和字体配置解析路径 | 已完成 `freetype + 自定义字体目录` 的最小闭环，可读取 `/system/fonts` | 还没有 `OHOS` 专用 font manager；还没有系统字体发现、fallback、字体配置解析能力 |
+| 文本 shaping | Linux 路线通常配合 `harfbuzz` 形成完整文本链路 | Android 路线也有较完整文本链路 | 当前只验证了最小文本绘制 | `harfbuzz` 尚未恢复；复杂文本 shaping、多语言排版、中英文混排能力尚未验证 |
+| GPU 基础后端 | 有 `GLX/X11`、Vulkan XCB 等桌面路径 | 有 `EGL`、Vulkan、部分 Dawn/NDK 路线 | 已完成 `Ganesh + EGL/GLES` 第一轮可用性验证；ArkTS 工程已实现 `gpu_direct` | 还没有 `OHOS` 专用 window context / surface backend；还没有更系统化的 GPU 生命周期平台封装 |
+| 窗口 / Surface 承载 | `tools/window/unix/*` 已有 Unix/X11 承载实现 | `tools/window/android/*` 已有 Android window context 实现 | 当前由 `skia_OHOS` 在应用侧通过 `XComponent + NativeWindow + EGL` 承接 | `Skia` 本体里还没有对标 Android / Unix 的 `tools/window/ohos/*` 或等价平台承载实现 |
+| NDK / 系统桥接 | 主要依赖 POSIX / X11 / 桌面库 | 已有 `SkImageEncoder_NDK`、`SkImageGeneratorNDK`、`SkNDKConversions`、`AHardwareBuffer` 路线 | 当前仅在应用接入层使用 `NativeWindow` 和 `EGL` | 还没有 `OHOS` 原生 buffer / image / native graphics bridge 的 `Skia src/ports` 级实现 |
+| 日志 / 调试 / OS glue | 已有 `stdio` / POSIX 相关实现 | 已有 `SkLog_android.cpp`、`SkDebug_android.cpp` 等 Android 专用 glue | 当前主要复用通用实现 | 还没有 `OHOS` 专用 logging / debug / OS glue 实现 |
+| 构建与验证工具 | 平台特性长期稳定，工具链成熟 | Android 路径成熟，window / NDK / GPU 工具链完整 | 已补 `ohos_egl_smoke`、`ohos_text_smoke`，并通过 `lycium` 构建与真机验证 | 还没有完整的 `OHOS` viewer / dm / window tool 路线，验证入口仍然偏 smoke test |
+
+## OHOS 已实现 vs 未实现
+
+为了更直观看当前进展，可以再把 OHOS 单独拆成一张状态表。
+
+| 状态 | 具体内容 |
+|---|---|
+| 已实现 | `OHOS` 基础平台识别 |
+| 已实现 | `skia_use_ohos`、`skia_use_ohos_native_window`、`skia_use_ohos_egl`、`skia_use_ohos_gles` |
+| 已实现 | Linux 桌面能力剥离：`x11`、`fontconfig`、`perfetto` |
+| 已实现 | `lycium` 可构建 GPU 可用版 `libskia.so` |
+| 已实现 | `ohos_egl_smoke` 可构建 |
+| 已实现 | `ohos_text_smoke` 可构建 |
+| 已实现 | `skia_OHOS` 已完成 `XComponent + NativeWindow + EGL/GLES + Skia GPU direct rendering` |
+| 已实现 | 设备侧已验证 GPU 直连渲染 |
+| 已实现 | 设备侧已验证系统字体目录加载与最小文本渲染 |
+| 未实现 | `OHOS` 专用 font manager |
+| 未实现 | `OHOS` 字体配置解析、系统字体发现、fallback 策略 |
+| 未实现 | `harfbuzz` 恢复与复杂文本 shaping |
+| 未实现 | `Skia` 本体内正式的 `OHOS window context / surface context` |
+| 未实现 | `Skia src/ports` 层的 `OHOS` 原生 buffer / image bridge |
+| 未实现 | `OHOS` 专用 logging / debug / OS glue |
+| 未实现 | 对标 Android / Linux 的更完整平台工具和验证体系 |
+
+## 哪些后续工作会真正进入 Skia 源码级平台适配
+
+如果只是“把库编出来并接进应用”，很多工作会停留在 `GN/BUILD/recipe/app glue`。
+
+但如果目标是让 `OHOS` 对标 Linux / Android 的平台适配深度，后续真正会进入 `Skia src/` 的重点主要有这些：
+
+| 优先级 | 适配方向 | 预计进入的位置 |
+|---|---|---|
+| 高 | `OHOS` 专用字体管理层 | `src/ports/` |
+| 高 | `harfbuzz` 文本 shaping 恢复 | `src/text/`、`modules/skshaper/`、相关构建路径 |
+| 高 | `OHOS` 专用 window / surface context | `tools/window/`，必要时配合 `src/gpu/` |
+| 中 | `OHOS` 原生 buffer / image bridge | `src/ports/` |
+| 中 | 更稳定的 GPU 生命周期和 surface 重建逻辑 | `src/gpu/ganesh/` 附近 |
+| 中 | `OHOS` 专用日志 / 调试 / OS glue | `src/ports/` |
+| 低 | Vulkan / Graphite 的 OHOS 正式路线 | `src/gpu/graphite/`、Vulkan 后端 |
+
 ## 当前实现
 
 当前 `skia_OHOS` 已经完成 `ArkTS + XComponent + NativeWindow/EGL + Skia GPU direct rendering` 的接入验证。
@@ -387,3 +453,4 @@ Skia 预编译库位置：
 - `Skia` 的 GPU 路径已经在 HarmonyOS 上跑通
 - `skia_OHOS` 已经把 `Skia` 真正接入到 HarmonyOS ArkTS 工程中
 - 当前图形结果来自 `Skia` 的 GPU 直接渲染，而不是 CPU 离屏贴纹理的旧路径
+
