@@ -87,37 +87,37 @@
 
 ## 阶段计划
 
-### Phase 0：基础 OHOS 化与最小构建验证
+### ~~Phase 0：基础 OHOS 化与最小构建验证~~
 
 状态：`已完成`
 
 目标：
 
-- 为 `Skia` 建立基础 OHOS 平台识别
-- 跑通 `lycium` 构建
-- 产出最小可验证库和工具
+- ~~为 `Skia` 建立基础 OHOS 平台识别~~
+- ~~跑通 `lycium` 构建~~
+- ~~产出最小可验证库和工具~~
 
 完成结果：
 
-- `m146-ohos` 分支已建立
-- `libskia.so` 已构建成功
-- `sksl-minify` 与 `ohos_egl_smoke` 已可构建
+- ~~`m146-ohos` 分支已建立~~
+- ~~`libskia.so` 已构建成功~~
+- ~~`sksl-minify` 与 `ohos_egl_smoke` 已可构建~~
 
-### Phase 1：ArkTS 工程接入与可见渲染验证
+### ~~Phase 1：ArkTS 工程接入与可见渲染验证~~
 
 状态：`已完成`
 
 目标：
 
-- 在 HarmonyOS ArkTS 工程中接入 `Skia`
-- 打通 `XComponent -> NativeWindow -> EGL -> Skia`
-- 在设备界面上看到实际图形结果
+- ~~在 HarmonyOS ArkTS 工程中接入 `Skia`~~
+- ~~打通 `XComponent -> NativeWindow -> EGL -> Skia`~~
+- ~~在设备界面上看到实际图形结果~~
 
 完成结果：
 
-- `skia_OHOS` 已完成接入
-- 已看到由 `Skia` 绘制的基础图形
-- 当前渲染方式为 `Skia CPU 离屏绘制 + GL 纹理上屏`
+- ~~`skia_OHOS` 已完成接入~~
+- ~~已看到由 `Skia` 绘制的基础图形~~
+- ~~当前渲染方式为 `Skia CPU 离屏绘制 + GL 纹理上屏`~~
 
 ### Phase 2：GPU 直连渲染路径
 
