@@ -85,6 +85,101 @@
   - 线段
   - 点
 
+## 阶段计划
+
+### Phase 0：基础 OHOS 化与最小构建验证
+
+状态：`已完成`
+
+目标：
+
+- 为 `Skia` 建立基础 OHOS 平台识别
+- 跑通 `lycium` 构建
+- 产出最小可验证库和工具
+
+完成结果：
+
+- `m146-ohos` 分支已建立
+- `libskia.so` 已构建成功
+- `sksl-minify` 与 `ohos_egl_smoke` 已可构建
+
+### Phase 1：ArkTS 工程接入与可见渲染验证
+
+状态：`已完成`
+
+目标：
+
+- 在 HarmonyOS ArkTS 工程中接入 `Skia`
+- 打通 `XComponent -> NativeWindow -> EGL -> Skia`
+- 在设备界面上看到实际图形结果
+
+完成结果：
+
+- `skia_OHOS` 已完成接入
+- 已看到由 `Skia` 绘制的基础图形
+- 当前渲染方式为 `Skia CPU 离屏绘制 + GL 纹理上屏`
+
+### Phase 2：GPU 直连渲染路径
+
+状态：`待开始`
+
+目标：
+
+- 从“CPU bitmap + 贴纹理”升级到“Skia 直接驱动 GPU surface”
+- 让 `Skia` 直接对接 `EGL/GLES` 渲染目标
+
+计划内容：
+
+- 梳理 `Ganesh + GLES` 在 OHOS 下的最小可行路径
+- 研究 `SkSurface` / `GrDirectContext` / `BackendRenderTarget` 的绑定方式
+- 做一个 `Skia` 直接 GPU 绘制到界面的最小样例
+
+阶段完成标准：
+
+- 不再依赖 CPU bitmap 中转
+- `Skia` 可直接对 GPU render target 绘制
+
+### Phase 3：文本与字体系统恢复
+
+状态：`待开始`
+
+目标：
+
+- 恢复 `Skia` 在 OHOS 上的基础文本能力
+- 不再只验证几何图形
+
+计划内容：
+
+- 恢复 `freetype`
+- 恢复 `harfbuzz`
+- 先支持指定字体文件加载
+- 增加文本渲染 smoke test
+
+阶段完成标准：
+
+- 可以在 OHOS 上正确绘制文本
+- 至少完成中英文基本文本显示验证
+
+### Phase 4：OHOS 平台分支整理与稳定化
+
+状态：`待开始`
+
+目标：
+
+- 把当前零散适配收敛成可维护的平台支持
+- 形成更清晰的 OHOS feature matrix
+
+计划内容：
+
+- 收敛 `GN` 平台分支
+- 整理默认开关和能力边界
+- 补文档、补验证样例、补构建说明
+
+阶段完成标准：
+
+- OHOS 平台支持具备清晰边界
+- 后续可继续演进到更完整 GPU/文本/窗口集成
+
 ## 关键代码
 
 ArkTS 工程中的关键文件：
