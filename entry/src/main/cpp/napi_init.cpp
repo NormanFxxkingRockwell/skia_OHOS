@@ -14,8 +14,10 @@
 #include "include/core/SkCanvas.h"
 #include "include/core/SkColor.h"
 #include "include/core/SkColorSpace.h"
+#include "include/core/SkFont.h"
+#include "include/core/SkFontMgr.h"
+#include "include/core/SkFontStyle.h"
 #include "include/core/SkPaint.h"
-#include "include/core/SkPath.h"
 #include "include/core/SkSurface.h"
 #include "include/core/SkSurfaceProps.h"
 #include "include/gpu/ganesh/GrBackendSurface.h"
@@ -23,11 +25,16 @@
 #include "include/gpu/ganesh/SkSurfaceGanesh.h"
 #include "include/gpu/ganesh/gl/GrGLBackendSurface.h"
 #include "include/gpu/ganesh/gl/GrGLDirectContext.h"
+#include "include/ports/SkFontMgr_directory.h"
 
 namespace {
 
 constexpr int32_t APP_LOG_DOMAIN = 0x3201;
 constexpr const char* APP_LOG_TAG = "SkiaXComponent";
+constexpr const char* SYSTEM_FONT_DIR = "/system/fonts";
+constexpr const char* PREFERRED_SC_FONT = "/system/fonts/HarmonyOS_Sans_SC.ttf";
+constexpr const char* ALT_SC_FONT = "/system/fonts/FZHeiT-SC-Regular.ttf";
+constexpr const char* CJK_FONT = "/system/fonts/NotoSansCJK-Regular.ttc";
 
 struct RendererState {
     OH_NativeXComponent* component = nullptr;
@@ -37,6 +44,8 @@ struct RendererState {
     EGLContext context = EGL_NO_CONTEXT;
     sk_sp<GrDirectContext> directContext;
     sk_sp<SkSurface> skSurface;
+    sk_sp<SkFontMgr> fontMgr;
+    sk_sp<SkTypeface> typeface;
     uint64_t width = 0;
     uint64_t height = 0;
     uint32_t frameIndex = 0;
@@ -56,6 +65,35 @@ bool MakeContextCurrent(const RendererState& state)
         OH_LOG_Print(LOG_APP, LOG_ERROR, APP_LOG_DOMAIN, APP_LOG_TAG, "eglMakeCurrent failed");
         return false;
     }
+    return true;
+}
+
+bool EnsureTypeface(RendererState& state)
+{
+    if (state.typeface) {
+        return true;
+    }
+    if (!state.fontMgr) {
+        state.fontMgr = SkFontMgr_New_Custom_Directory(SYSTEM_FONT_DIR);
+        if (!state.fontMgr || state.fontMgr->countFamilies() == 0) {
+            OH_LOG_Print(LOG_APP, LOG_ERROR, APP_LOG_DOMAIN, APP_LOG_TAG,
+                "failed to load fonts from %{public}s", SYSTEM_FONT_DIR);
+            return false;
+        }
+    }
+    state.typeface = state.fontMgr->makeFromFile(PREFERRED_SC_FONT);
+    if (!state.typeface) {
+        OH_LOG_Print(LOG_APP, LOG_WARN, APP_LOG_DOMAIN, APP_LOG_TAG,
+            "failed to load preferred font %{public}s, fallback to default family", PREFERRED_SC_FONT);
+        state.typeface = state.fontMgr->legacyMakeTypeface(nullptr, SkFontStyle());
+    }
+    if (!state.typeface) {
+        OH_LOG_Print(LOG_APP, LOG_ERROR, APP_LOG_DOMAIN, APP_LOG_TAG,
+            "failed to create typeface from %{public}s", SYSTEM_FONT_DIR);
+        return false;
+    }
+    OH_LOG_Print(LOG_APP, LOG_INFO, APP_LOG_DOMAIN, APP_LOG_TAG,
+        "font manager ready families=%{public}d font=%{public}s", state.fontMgr->countFamilies(), PREFERRED_SC_FONT);
     return true;
 }
 
@@ -174,6 +212,8 @@ bool InitEgl(RendererState& state)
 void DestroyRenderer(RendererState& state)
 {
     state.skSurface.reset();
+    state.typeface.reset();
+    state.fontMgr.reset();
 
     if (state.directContext) {
         state.directContext->flushAndSubmit();
@@ -209,44 +249,95 @@ void DrawGpuScene(RendererState& state)
         OH_LOG_Print(LOG_APP, LOG_ERROR, APP_LOG_DOMAIN, APP_LOG_TAG, "skSurface unavailable");
         return;
     }
+    if (!EnsureTypeface(state)) {
+        return;
+    }
+
+    sk_sp<SkTypeface> altTypeface = state.fontMgr->makeFromFile(ALT_SC_FONT);
+    sk_sp<SkTypeface> cjkTypeface = state.fontMgr->makeFromFile(CJK_FONT);
 
     SkCanvas* canvas = state.skSurface->getCanvas();
-    canvas->clear(SkColorSetRGB(16, 24, 32));
+    canvas->clear(SkColorSetRGB(14, 22, 30));
 
     const float wf = static_cast<float>(state.width);
     const float hf = static_cast<float>(state.height);
-    const float progress = static_cast<float>(state.frameIndex % 360) / 360.0f;
+    const float padding = std::max(24.0f, wf * 0.035f);
 
-    SkPaint panelPaint;
-    panelPaint.setAntiAlias(true);
-    panelPaint.setColor(SkColorSetARGB(255, 38, 73, 92));
-    canvas->drawRoundRect(SkRect::MakeXYWH(24.0f, 24.0f, wf - 48.0f, hf - 48.0f), 28.0f, 28.0f, panelPaint);
+    SkPaint cardPaint;
+    cardPaint.setAntiAlias(true);
+    cardPaint.setColor(SkColorSetARGB(255, 33, 56, 72));
+    canvas->drawRoundRect(SkRect::MakeXYWH(padding, padding, wf - padding * 2.0f, hf - padding * 2.0f),
+                          26.0f,
+                          26.0f,
+                          cardPaint);
 
-    SkPaint circlePaint;
-    circlePaint.setAntiAlias(true);
-    circlePaint.setColor(SkColorSetRGB(
-        static_cast<U8CPU>(60 + progress * 120.0f),
-        static_cast<U8CPU>(160 + progress * 40.0f),
-        190));
-    canvas->drawCircle(wf * 0.3f, hf * 0.35f, std::min(wf, hf) * 0.16f, circlePaint);
+    SkPaint bannerPaint;
+    bannerPaint.setAntiAlias(true);
+    bannerPaint.setColor(SkColorSetRGB(208, 232, 255));
+    canvas->drawRoundRect(SkRect::MakeXYWH(padding + 22.0f, padding + 22.0f, wf - padding * 2.0f - 44.0f, 84.0f),
+                          18.0f,
+                          18.0f,
+                          bannerPaint);
 
-    SkPaint rectPaint;
-    rectPaint.setAntiAlias(true);
-    rectPaint.setColor(SkColorSetRGB(255, 183, 3));
-    canvas->drawRect(SkRect::MakeXYWH(wf * 0.52f, hf * 0.2f, wf * 0.22f, hf * 0.22f), rectPaint);
+    SkPaint titlePaint;
+    titlePaint.setAntiAlias(true);
+    titlePaint.setColor(SkColorSetRGB(18, 52, 86));
 
-    SkPaint strokePaint;
-    strokePaint.setAntiAlias(true);
-    strokePaint.setStyle(SkPaint::kStroke_Style);
-    strokePaint.setStrokeWidth(10.0f);
-    strokePaint.setColor(SkColorSetRGB(251, 86, 122));
-    canvas->drawLine(wf * 0.18f, hf * 0.76f, wf * 0.48f, hf * 0.58f, strokePaint);
-    canvas->drawLine(wf * 0.48f, hf * 0.58f, wf * 0.8f, hf * 0.76f, strokePaint);
+    SkPaint bodyPaint;
+    bodyPaint.setAntiAlias(true);
+    bodyPaint.setColor(SK_ColorWHITE);
 
-    SkPaint dotPaint;
-    dotPaint.setAntiAlias(true);
-    dotPaint.setColor(SK_ColorWHITE);
-    canvas->drawCircle(wf * (0.18f + progress * 0.54f), hf * 0.76f, 12.0f, dotPaint);
+    SkPaint labelPaint;
+    labelPaint.setAntiAlias(true);
+    labelPaint.setColor(SkColorSetRGB(152, 201, 255));
+
+    SkPaint accentPaint;
+    accentPaint.setAntiAlias(true);
+    accentPaint.setColor(SkColorSetRGB(255, 183, 3));
+    canvas->drawCircle(wf - padding - 48.0f, padding + 64.0f, 12.0f, accentPaint);
+
+    SkFont titleFont(state.typeface, std::max(32.0f, hf * 0.055f));
+    titleFont.setSubpixel(true);
+    titleFont.setEdging(SkFont::Edging::kSubpixelAntiAlias);
+    canvas->drawString("HarmonyOS Skia", padding + 40.0f, padding + 78.0f, titleFont, titlePaint);
+
+    SkFont infoFont(state.typeface, std::max(22.0f, hf * 0.03f));
+    infoFont.setSubpixel(true);
+    canvas->drawString("GPU direct multi-font rendering", padding + 36.0f, padding + 154.0f, infoFont, bodyPaint);
+    canvas->drawString("Font source: /system/fonts", padding + 36.0f, padding + 194.0f, infoFont, bodyPaint);
+
+    const float sampleTop = padding + 248.0f;
+    const float lineGap = std::max(66.0f, hf * 0.075f);
+
+    auto drawSample = [&](float y, const char* label, sk_sp<SkTypeface> face) {
+        SkFont labelFont(state.typeface, std::max(18.0f, hf * 0.024f));
+        labelFont.setSubpixel(true);
+        canvas->drawString(label, padding + 36.0f, y, labelFont, labelPaint);
+
+        SkFont sampleFont(face ? face : state.typeface, std::max(28.0f, hf * 0.035f));
+        sampleFont.setSubpixel(true);
+        sampleFont.setEdging(SkFont::Edging::kSubpixelAntiAlias);
+        canvas->drawString(u8"\u4e2d\u6587\u5b57\u4f53\u6e32\u67d3\u9a8c\u8bc1 ABC 123",
+                           padding + 36.0f,
+                           y + 34.0f,
+                           sampleFont,
+                           bodyPaint);
+    };
+
+    drawSample(sampleTop, "HarmonyOS_Sans_SC.ttf", state.typeface);
+    drawSample(sampleTop + lineGap, "FZHeiT-SC-Regular.ttf", altTypeface);
+    drawSample(sampleTop + lineGap * 2.0f, "NotoSansCJK-Regular.ttc", cjkTypeface);
+
+    SkPaint footerPaint;
+    footerPaint.setAntiAlias(true);
+    footerPaint.setColor(SkColorSetRGB(152, 201, 255));
+    SkFont footerFont(state.typeface, std::max(18.0f, hf * 0.024f));
+    footerFont.setSubpixel(true);
+    canvas->drawString("Skia -> GrDirectContext -> WrapBackendRenderTarget -> XComponent",
+                       padding + 36.0f,
+                       hf - padding - 28.0f,
+                       footerFont,
+                       footerPaint);
 }
 
 void RenderFrameLocked(RendererState& state)
