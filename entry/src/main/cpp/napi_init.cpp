@@ -6,42 +6,28 @@
 #include <native_window/external_window.h>
 #include <napi/native_api.h>
 
+#include <algorithm>
 #include <cinttypes>
 #include <cstdint>
-#include <cstring>
 #include <mutex>
-#include <string>
-#include <vector>
 
-#include "include/core/SkBitmap.h"
 #include "include/core/SkCanvas.h"
 #include "include/core/SkColor.h"
+#include "include/core/SkColorSpace.h"
 #include "include/core/SkPaint.h"
 #include "include/core/SkPath.h"
+#include "include/core/SkSurface.h"
+#include "include/core/SkSurfaceProps.h"
+#include "include/gpu/ganesh/GrBackendSurface.h"
+#include "include/gpu/ganesh/GrDirectContext.h"
+#include "include/gpu/ganesh/SkSurfaceGanesh.h"
+#include "include/gpu/ganesh/gl/GrGLBackendSurface.h"
+#include "include/gpu/ganesh/gl/GrGLDirectContext.h"
 
 namespace {
 
 constexpr int32_t APP_LOG_DOMAIN = 0x3201;
 constexpr const char* APP_LOG_TAG = "SkiaXComponent";
-
-constexpr const char* VERTEX_SHADER = R"(
-attribute vec2 aPosition;
-attribute vec2 aTexCoord;
-varying vec2 vTexCoord;
-void main() {
-    vTexCoord = aTexCoord;
-    gl_Position = vec4(aPosition, 0.0, 1.0);
-}
-)";
-
-constexpr const char* FRAGMENT_SHADER = R"(
-precision mediump float;
-varying vec2 vTexCoord;
-uniform sampler2D uTexture;
-void main() {
-    gl_FragColor = texture2D(uTexture, vTexCoord);
-}
-)";
 
 struct RendererState {
     OH_NativeXComponent* component = nullptr;
@@ -49,11 +35,8 @@ struct RendererState {
     EGLDisplay display = EGL_NO_DISPLAY;
     EGLSurface surface = EGL_NO_SURFACE;
     EGLContext context = EGL_NO_CONTEXT;
-    GLuint program = 0;
-    GLuint texture = 0;
-    GLint positionLocation = -1;
-    GLint texCoordLocation = -1;
-    GLint textureLocation = -1;
+    sk_sp<GrDirectContext> directContext;
+    sk_sp<SkSurface> skSurface;
     uint64_t width = 0;
     uint64_t height = 0;
     uint32_t frameIndex = 0;
@@ -64,65 +47,62 @@ struct RendererState {
 RendererState g_renderer;
 std::mutex g_mutex;
 
-GLuint CompileShader(GLenum shaderType, const char* source)
+bool MakeContextCurrent(const RendererState& state)
 {
-    GLuint shader = glCreateShader(shaderType);
-    glShaderSource(shader, 1, &source, nullptr);
-    glCompileShader(shader);
-
-    GLint compiled = GL_FALSE;
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &compiled);
-    if (compiled == GL_TRUE) {
-        return shader;
+    if (state.display == EGL_NO_DISPLAY || state.surface == EGL_NO_SURFACE || state.context == EGL_NO_CONTEXT) {
+        return false;
     }
-
-    GLint logLength = 0;
-    glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &logLength);
-    std::string log(static_cast<size_t>(logLength > 1 ? logLength : 1), '\0');
-    glGetShaderInfoLog(shader, logLength, nullptr, log.data());
-    OH_LOG_Print(LOG_APP, LOG_ERROR, APP_LOG_DOMAIN, APP_LOG_TAG,
-        "shader compile failed: %{public}s", log.c_str());
-    glDeleteShader(shader);
-    return 0;
+    if (eglMakeCurrent(state.display, state.surface, state.surface, state.context) != EGL_TRUE) {
+        OH_LOG_Print(LOG_APP, LOG_ERROR, APP_LOG_DOMAIN, APP_LOG_TAG, "eglMakeCurrent failed");
+        return false;
+    }
+    return true;
 }
 
-GLuint CreateProgram()
+bool RecreateSkSurface(RendererState& state)
 {
-    GLuint vertexShader = CompileShader(GL_VERTEX_SHADER, VERTEX_SHADER);
-    if (vertexShader == 0) {
-        return 0;
+    if (!state.directContext || state.width == 0 || state.height == 0) {
+        return false;
+    }
+    if (!MakeContextCurrent(state)) {
+        return false;
     }
 
-    GLuint fragmentShader = CompileShader(GL_FRAGMENT_SHADER, FRAGMENT_SHADER);
-    if (fragmentShader == 0) {
-        glDeleteShader(vertexShader);
-        return 0;
+    state.skSurface.reset();
+
+    GLint framebuffer = 0;
+    GLint stencilBits = 0;
+    GLint sampleCount = 0;
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &framebuffer);
+    glGetIntegerv(GL_STENCIL_BITS, &stencilBits);
+    glGetIntegerv(GL_SAMPLES, &sampleCount);
+
+    GrGLFramebufferInfo framebufferInfo;
+    framebufferInfo.fFBOID = static_cast<GrGLuint>(framebuffer);
+    framebufferInfo.fFormat = GL_RGBA8;
+    framebufferInfo.fProtected = skgpu::Protected::kNo;
+
+    GrBackendRenderTarget backendRenderTarget = GrBackendRenderTargets::MakeGL(
+        static_cast<int>(state.width),
+        static_cast<int>(state.height),
+        std::max(0, sampleCount),
+        std::max(0, stencilBits),
+        framebufferInfo);
+
+    static const SkSurfaceProps surfaceProps;
+    state.skSurface = SkSurfaces::WrapBackendRenderTarget(state.directContext.get(),
+                                                          backendRenderTarget,
+                                                          kBottomLeft_GrSurfaceOrigin,
+                                                          kRGBA_8888_SkColorType,
+                                                          nullptr,
+                                                          &surfaceProps);
+    if (!state.skSurface) {
+        OH_LOG_Print(LOG_APP, LOG_ERROR, APP_LOG_DOMAIN, APP_LOG_TAG,
+            "WrapBackendRenderTarget failed framebuffer=%{public}d stencil=%{public}d samples=%{public}d",
+            framebuffer, stencilBits, sampleCount);
+        return false;
     }
-
-    GLuint program = glCreateProgram();
-    glAttachShader(program, vertexShader);
-    glAttachShader(program, fragmentShader);
-    glBindAttribLocation(program, 0, "aPosition");
-    glBindAttribLocation(program, 1, "aTexCoord");
-    glLinkProgram(program);
-
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);
-
-    GLint linked = GL_FALSE;
-    glGetProgramiv(program, GL_LINK_STATUS, &linked);
-    if (linked == GL_TRUE) {
-        return program;
-    }
-
-    GLint logLength = 0;
-    glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logLength);
-    std::string log(static_cast<size_t>(logLength > 1 ? logLength : 1), '\0');
-    glGetProgramInfoLog(program, logLength, nullptr, log.data());
-    OH_LOG_Print(LOG_APP, LOG_ERROR, APP_LOG_DOMAIN, APP_LOG_TAG,
-        "program link failed: %{public}s", log.c_str());
-    glDeleteProgram(program);
-    return 0;
+    return true;
 }
 
 bool InitEgl(RendererState& state)
@@ -145,6 +125,7 @@ bool InitEgl(RendererState& state)
         EGL_GREEN_SIZE, 8,
         EGL_BLUE_SIZE, 8,
         EGL_ALPHA_SIZE, 8,
+        EGL_STENCIL_SIZE, 8,
         EGL_NONE
     };
 
@@ -155,16 +136,15 @@ bool InitEgl(RendererState& state)
         return false;
     }
 
-    const EGLint contextAttribs[] = {
-        EGL_CONTEXT_CLIENT_VERSION, 2,
-        EGL_NONE
-    };
-
     if (eglBindAPI(EGL_OPENGL_ES_API) != EGL_TRUE) {
         OH_LOG_Print(LOG_APP, LOG_ERROR, APP_LOG_DOMAIN, APP_LOG_TAG, "eglBindAPI failed");
         return false;
     }
 
+    const EGLint contextAttribs[] = {
+        EGL_CONTEXT_CLIENT_VERSION, 2,
+        EGL_NONE
+    };
     state.context = eglCreateContext(state.display, config, EGL_NO_CONTEXT, contextAttribs);
     if (state.context == EGL_NO_CONTEXT) {
         OH_LOG_Print(LOG_APP, LOG_ERROR, APP_LOG_DOMAIN, APP_LOG_TAG, "eglCreateContext failed");
@@ -178,42 +158,31 @@ bool InitEgl(RendererState& state)
         return false;
     }
 
-    if (eglMakeCurrent(state.display, state.surface, state.surface, state.context) != EGL_TRUE) {
-        OH_LOG_Print(LOG_APP, LOG_ERROR, APP_LOG_DOMAIN, APP_LOG_TAG, "eglMakeCurrent failed");
+    if (!MakeContextCurrent(state)) {
         return false;
     }
 
-    state.program = CreateProgram();
-    if (state.program == 0) {
+    state.directContext = GrDirectContexts::MakeGL();
+    if (!state.directContext) {
+        OH_LOG_Print(LOG_APP, LOG_ERROR, APP_LOG_DOMAIN, APP_LOG_TAG, "GrDirectContexts::MakeGL failed");
         return false;
     }
 
-    state.positionLocation = glGetAttribLocation(state.program, "aPosition");
-    state.texCoordLocation = glGetAttribLocation(state.program, "aTexCoord");
-    state.textureLocation = glGetUniformLocation(state.program, "uTexture");
-
-    glGenTextures(1, &state.texture);
-    glBindTexture(GL_TEXTURE_2D, state.texture);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    return true;
+    return RecreateSkSurface(state);
 }
 
 void DestroyRenderer(RendererState& state)
 {
-    if (state.display != EGL_NO_DISPLAY) {
-        eglMakeCurrent(state.display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    state.skSurface.reset();
+
+    if (state.directContext) {
+        state.directContext->flushAndSubmit();
+        state.directContext->abandonContext();
+        state.directContext.reset();
     }
 
-    if (state.texture != 0) {
-        glDeleteTextures(1, &state.texture);
-        state.texture = 0;
-    }
-    if (state.program != 0) {
-        glDeleteProgram(state.program);
-        state.program = 0;
+    if (state.display != EGL_NO_DISPLAY) {
+        eglMakeCurrent(state.display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
     }
     if (state.surface != EGL_NO_SURFACE) {
         eglDestroySurface(state.display, state.surface);
@@ -234,31 +203,24 @@ void DestroyRenderer(RendererState& state)
     state.nativeWindow = nullptr;
 }
 
-void DrawCpuScene(RendererState& state, std::vector<uint8_t>& pixels)
+void DrawGpuScene(RendererState& state)
 {
-    const int32_t width = static_cast<int32_t>(state.width);
-    const int32_t height = static_cast<int32_t>(state.height);
-    const size_t rowBytes = static_cast<size_t>(width) * 4;
-    pixels.resize(rowBytes * static_cast<size_t>(height));
-
-    SkImageInfo info = SkImageInfo::Make(width, height, kRGBA_8888_SkColorType, kPremul_SkAlphaType);
-    SkBitmap bitmap;
-    if (!bitmap.installPixels(info, pixels.data(), rowBytes)) {
-        OH_LOG_Print(LOG_APP, LOG_ERROR, APP_LOG_DOMAIN, APP_LOG_TAG, "bitmap installPixels failed");
+    if (!state.skSurface) {
+        OH_LOG_Print(LOG_APP, LOG_ERROR, APP_LOG_DOMAIN, APP_LOG_TAG, "skSurface unavailable");
         return;
     }
 
-    SkCanvas canvas(bitmap);
-    canvas.clear(SkColorSetRGB(16, 24, 32));
+    SkCanvas* canvas = state.skSurface->getCanvas();
+    canvas->clear(SkColorSetRGB(16, 24, 32));
 
-    const float wf = static_cast<float>(width);
-    const float hf = static_cast<float>(height);
+    const float wf = static_cast<float>(state.width);
+    const float hf = static_cast<float>(state.height);
     const float progress = static_cast<float>(state.frameIndex % 360) / 360.0f;
 
     SkPaint panelPaint;
     panelPaint.setAntiAlias(true);
     panelPaint.setColor(SkColorSetARGB(255, 38, 73, 92));
-    canvas.drawRoundRect(SkRect::MakeXYWH(24.0f, 24.0f, wf - 48.0f, hf - 48.0f), 28.0f, 28.0f, panelPaint);
+    canvas->drawRoundRect(SkRect::MakeXYWH(24.0f, 24.0f, wf - 48.0f, hf - 48.0f), 28.0f, 28.0f, panelPaint);
 
     SkPaint circlePaint;
     circlePaint.setAntiAlias(true);
@@ -266,65 +228,25 @@ void DrawCpuScene(RendererState& state, std::vector<uint8_t>& pixels)
         static_cast<U8CPU>(60 + progress * 120.0f),
         static_cast<U8CPU>(160 + progress * 40.0f),
         190));
-    canvas.drawCircle(wf * 0.3f, hf * 0.35f, std::min(wf, hf) * 0.16f, circlePaint);
+    canvas->drawCircle(wf * 0.3f, hf * 0.35f, std::min(wf, hf) * 0.16f, circlePaint);
 
     SkPaint rectPaint;
     rectPaint.setAntiAlias(true);
     rectPaint.setColor(SkColorSetRGB(255, 183, 3));
-    canvas.drawRect(SkRect::MakeXYWH(wf * 0.52f, hf * 0.2f, wf * 0.22f, hf * 0.22f), rectPaint);
+    canvas->drawRect(SkRect::MakeXYWH(wf * 0.52f, hf * 0.2f, wf * 0.22f, hf * 0.22f), rectPaint);
 
     SkPaint strokePaint;
     strokePaint.setAntiAlias(true);
     strokePaint.setStyle(SkPaint::kStroke_Style);
     strokePaint.setStrokeWidth(10.0f);
     strokePaint.setColor(SkColorSetRGB(251, 86, 122));
-    canvas.drawLine(wf * 0.18f, hf * 0.76f, wf * 0.48f, hf * 0.58f, strokePaint);
-    canvas.drawLine(wf * 0.48f, hf * 0.58f, wf * 0.8f, hf * 0.76f, strokePaint);
+    canvas->drawLine(wf * 0.18f, hf * 0.76f, wf * 0.48f, hf * 0.58f, strokePaint);
+    canvas->drawLine(wf * 0.48f, hf * 0.58f, wf * 0.8f, hf * 0.76f, strokePaint);
 
     SkPaint dotPaint;
     dotPaint.setAntiAlias(true);
     dotPaint.setColor(SK_ColorWHITE);
-    canvas.drawCircle(wf * (0.18f + progress * 0.54f), hf * 0.76f, 12.0f, dotPaint);
-}
-
-void PresentToSurface(RendererState& state, const std::vector<uint8_t>& pixels)
-{
-    const GLfloat vertices[] = {
-        -1.0f, -1.0f, 0.0f, 1.0f,
-         1.0f, -1.0f, 1.0f, 1.0f,
-        -1.0f,  1.0f, 0.0f, 0.0f,
-         1.0f,  1.0f, 1.0f, 0.0f,
-    };
-
-    glViewport(0, 0, static_cast<GLsizei>(state.width), static_cast<GLsizei>(state.height));
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
-
-    glUseProgram(state.program);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, state.texture);
-    glTexImage2D(GL_TEXTURE_2D,
-                 0,
-                 GL_RGBA,
-                 static_cast<GLsizei>(state.width),
-                 static_cast<GLsizei>(state.height),
-                 0,
-                 GL_RGBA,
-                 GL_UNSIGNED_BYTE,
-                 pixels.data());
-
-    glUniform1i(state.textureLocation, 0);
-    glEnableVertexAttribArray(static_cast<GLuint>(state.positionLocation));
-    glEnableVertexAttribArray(static_cast<GLuint>(state.texCoordLocation));
-    glVertexAttribPointer(static_cast<GLuint>(state.positionLocation), 2, GL_FLOAT, GL_FALSE,
-                          4 * sizeof(GLfloat), vertices);
-    glVertexAttribPointer(static_cast<GLuint>(state.texCoordLocation), 2, GL_FLOAT, GL_FALSE,
-                          4 * sizeof(GLfloat), vertices + 2);
-    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-    glDisableVertexAttribArray(static_cast<GLuint>(state.positionLocation));
-    glDisableVertexAttribArray(static_cast<GLuint>(state.texCoordLocation));
-
-    eglSwapBuffers(state.display, state.surface);
+    canvas->drawCircle(wf * (0.18f + progress * 0.54f), hf * 0.76f, 12.0f, dotPaint);
 }
 
 void RenderFrameLocked(RendererState& state)
@@ -336,16 +258,20 @@ void RenderFrameLocked(RendererState& state)
         return;
     }
 
-    if (eglMakeCurrent(state.display, state.surface, state.surface, state.context) != EGL_TRUE) {
-        OH_LOG_Print(LOG_APP, LOG_ERROR, APP_LOG_DOMAIN, APP_LOG_TAG, "eglMakeCurrent before render failed");
+    if (!MakeContextCurrent(state)) {
         return;
     }
 
-    std::vector<uint8_t> pixels;
-    DrawCpuScene(state, pixels);
-    PresentToSurface(state, pixels);
+    if (!state.skSurface && !RecreateSkSurface(state)) {
+        return;
+    }
+
+    DrawGpuScene(state);
+    state.directContext->flushAndSubmit(state.skSurface.get(), GrSyncCpu::kNo);
+    eglSwapBuffers(state.display, state.surface);
+
     OH_LOG_Print(LOG_APP, LOG_INFO, APP_LOG_DOMAIN, APP_LOG_TAG,
-        "RenderFrame finished frame=%{public}u", state.frameIndex);
+        "RenderFrame finished frame=%{public}u mode=gpu_direct", state.frameIndex);
     state.frameIndex++;
 }
 
@@ -374,6 +300,7 @@ void OnSurfaceChanged(OH_NativeXComponent* component, void* window)
     g_renderer.component = component;
     g_renderer.nativeWindow = static_cast<OHNativeWindow*>(window);
     OH_NativeXComponent_GetXComponentSize(component, window, &g_renderer.width, &g_renderer.height);
+    g_renderer.skSurface.reset();
     RenderFrameLocked(g_renderer);
 }
 
