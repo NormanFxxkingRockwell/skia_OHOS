@@ -16,7 +16,7 @@
 
 记录日期：
 
-- `2026-03-25`
+- `2026-03-26`
 
 ## 当前状态
 
@@ -113,15 +113,104 @@ pixel_checksum=8004268475873723857
 
 目标：
 
-- 整理更系统的 `OHOS` 平台分支
-- 让当前适配从“可跑通”走向“可维护”
+- 把当前“能跑通”的能力收敛成更稳定、可维护的 OHOS 平台方案
+- 明确哪些内容属于构建层配置，哪些内容已经进入平台分支
+- 为 Phase 5 的源码级平台适配准备清晰边界
 
-计划内容：
+#### Phase 4 实施清单
 
-- [ ] 整理 `GN/BUILD` 的 `OHOS` feature matrix
-- [ ] 梳理 `tools/window` / `src/ports` 中的 OHOS 入口
-- [ ] 规整 smoke test 和验证链路
-- [ ] 把当前有效能力边界收敛成稳定方案
+##### 4.1 整理 OHOS feature matrix
+
+要做的事：
+
+- [ ] 明确当前 OHOS 必开能力：
+  - `freetype`
+  - `harfbuzz`
+  - `icu`
+  - `egl`
+  - `gl`
+- [ ] 明确当前 OHOS 必关能力：
+  - `fontconfig`
+  - `x11`
+  - `vulkan`
+  - `perfetto`
+  - `pdf`
+  - `svg`
+  - `skottie`
+- [ ] 把这套能力矩阵写清楚，避免后续分散在 `HPKBUILD / BUILD.gn / skia.gni` 各处
+
+优先检查文件：
+
+- `libs/Skia/gn/skia.gni`
+- `libs/Skia/BUILD.gn`
+- `tpc_c_cplusplus/community/skia/HPKBUILD`
+
+完成标准：
+
+- 当前 OHOS feature matrix 有一份稳定、唯一的定义
+- 重新构建时不会再依赖“记忆当前哪些开关可用”
+
+##### 4.2 梳理 OHOS 平台入口与边界
+
+要做的事：
+
+- [ ] 列出当前 OHOS 实际已经使用的平台能力：
+  - `XComponent`
+  - `NativeWindow`
+  - `EGL/GLES`
+  - `/system/fonts`
+- [ ] 明确哪些还在应用侧承接
+- [ ] 明确哪些后续应该进入 `Skia src/`
+
+优先检查范围：
+
+- `libs/Skia/tools/`
+- `libs/Skia/src/ports/`
+- `libs/Skia/src/gpu/`
+- `skia_OHOS/entry/src/main/cpp/napi_init.cpp`
+
+完成标准：
+
+- 当前 OHOS 接入边界清晰
+- 不再混淆“Skia 本体适配”和“应用侧承载层接入”
+
+##### 4.3 稳定验证链路
+
+要做的事：
+
+- [ ] 固化 `lycium -> smoke test -> HAP` 这条验证链
+- [ ] 记录每一步的固定输入、输出和成功标志
+- [ ] 明确 smoke test 和 HAP 各自验证的能力边界
+
+当前涉及：
+
+- `ohos_egl_smoke`
+- `ohos_text_smoke`
+- `ohos_shaper_smoke`
+- `skia_OHOS` HAP
+
+完成标准：
+
+- 后续每次升级都能重复走这条链
+- 不再依赖临时记忆命令和经验
+
+##### 4.4 识别必须进入源码级平台适配的点
+
+要做的事：
+
+- [ ] 列出已经证明“只靠构建和 smoke test 不够”的模块
+- [ ] 识别 Phase 5 将真正进入 `Skia src/` 的候选点
+
+当前优先候选：
+
+- `OHOS` 专用 font manager
+- `OHOS` 专用 window / surface context
+- `src/ports` 中的 OHOS 原生 glue
+- 更稳定的 GPU 生命周期管理
+
+完成标准：
+
+- Phase 5 不再是泛泛而谈，而是有明确文件和模块边界
 
 ### Phase 5：更深层源码级平台适配
 
@@ -257,4 +346,4 @@ pixel_checksum=8004268475873723857
 
 1. 整理 `OHOS` 平台分支和 feature matrix
 2. 收敛当前 `lycium + smoke test + HAP` 的稳定链路
-3. 开始识别真正需要进入 `Skia src/` 的 OHOS 平台适配点
+3. 识别真正需要进入 `Skia src/` 的 OHOS 平台适配点
