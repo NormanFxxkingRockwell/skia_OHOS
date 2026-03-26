@@ -177,3 +177,24 @@
 下一步优先方向：
 - 做 `SkFontMgr_ohos` 的语言匹配和 fallback 精细化
 - 然后进入 `OHOS window / surface context` 的源码级平台适配
+## 2026-03-26 最新同步
+
+- 已同步最新 `libskia.so`
+- 已完成 `SkFontMgr_ohos` 最新版本的 HAP 回归
+- 当前字体管理已推进到：
+  - `OHOS NativeDrawing` 官方接口优先
+  - `bcp47` 语言感知 fallback
+  - `groupName + familyName` 更细匹配
+
+本轮 HAP 回归结果：
+
+```text
+OnSurfaceCreated
+surface created size=2030x986 ready=1
+RenderFrame finished frame=0 mode=gpu_direct
+RenderFrame finished frame=1 mode=gpu_direct
+```
+
+这说明：
+- 最新字体管理增强没有破坏 `gpu_direct`
+- `skia_OHOS` 仍然可以作为当前 Phase 4 的应用侧验证工程

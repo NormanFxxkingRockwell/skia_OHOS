@@ -159,3 +159,44 @@ pixel_checksum=8004268475873723857
 - OHOS font management has now entered source-level platform adaptation.
 - The current implementation is no longer “read config file and hope it matches the system”.
 - It is now “NativeDrawing API first, directory fallback only when the platform data is unavailable”.
+
+## Phase 4 Update: Language-aware fallback
+
+### What changed
+
+- `SkFontMgr_ohos` now keeps structured fallback entries from OHOS NativeDrawing:
+  - `groupName`
+  - `language`
+  - `familyName`
+- `onMatchFamilyStyleCharacter(...)` no longer ignores the incoming `bcp47` list.
+- The fallback selection now prefers:
+  1. explicit family match
+  2. OHOS language-aware fallback entries
+  3. character-based special fallback
+  4. general fallback family list
+
+### Validation result
+
+- device `ohos_text_smoke` now additionally reports:
+
+```text
+fallback_arabic_lang=1
+fallback_tibetan_lang=1
+```
+
+- full current result:
+
+```text
+font_families=235
+alias_harmonyos_sans=1
+alias_serif=1
+fallback_cjk=1
+fallback_arabic_lang=1
+fallback_tibetan_lang=1
+pixel_checksum=18319541926308614285
+```
+
+### Current conclusion
+
+- OHOS font fallback is no longer only “character range based”.
+- The font manager has now started using the platform-provided language metadata to drive fallback choice.

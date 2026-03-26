@@ -256,3 +256,23 @@ Phase 4：
 4. 把产物同步到 `skia_OHOS`
 5. 打 HAP
 6. 真机安装并验证
+## 2026-03-26 最新同步
+
+- 最新 `SkFontMgr_ohos` 已同步到 `skia_OHOS`
+- HAP 已完成一轮回归验证
+- 当前除了“官方接口优先”之外，还要记住：
+  - 字体 fallback 已经接入 `bcp47` 语言匹配
+  - `groupName + familyName` 匹配已经增强
+
+当前新增真机 smoke 结果：
+
+```text
+fallback_arabic_lang=1
+fallback_tibetan_lang=1
+```
+
+如果后续继续同步到 `skia_OHOS`，优先检查：
+
+- `skia/prebuilt/arm64-v8a/libskia.so`
+- `skia/include/ports/SkFontMgr_ohos.h`
+- HAP 回归是否仍然保持 `gpu_direct`
