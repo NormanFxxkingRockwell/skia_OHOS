@@ -340,6 +340,16 @@ pixel_checksum=8004268475873723857
 - 预编译库：[libskia.so](/D:/codeBase/skia_OHOS/skia/prebuilt/arm64-v8a/libskia.so)
 - 构建说明：[build.md](/D:/codeBase/skia_OHOS/build.md)
 
+## 相关报告
+
+- 深度适配方案：[adaptation-plan.md](/D:/codeBase/skia_OHOS/docs/reports/adaptation-plan.md)
+- 深度分析报告：[deep-analysis-report.md](/D:/codeBase/skia_OHOS/docs/reports/deep-analysis-report.md)
+- 深度适配进展：[deep-adaptation-progress.md](/D:/codeBase/skia_OHOS/docs/reports/deep-adaptation-progress.md)
+- Phase 4 Feature Matrix：[phase4-feature-matrix.md](/D:/codeBase/skia_OHOS/docs/reports/phase4-feature-matrix.md)
+- Phase 4 平台边界：[phase4-platform-boundary.md](/D:/codeBase/skia_OHOS/docs/reports/phase4-platform-boundary.md)
+- Phase 4 验证链路：[phase4-validation-chain.md](/D:/codeBase/skia_OHOS/docs/reports/phase4-validation-chain.md)
+- Phase 5 候选模块：[phase5-candidate-modules.md](/D:/codeBase/skia_OHOS/docs/reports/phase5-candidate-modules.md)
+
 ## 下一步
 
 当前最合理的下一步是进入 `Phase 4`：
