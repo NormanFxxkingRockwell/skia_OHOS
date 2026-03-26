@@ -26,7 +26,7 @@
 #include "include/gpu/ganesh/SkSurfaceGanesh.h"
 #include "include/gpu/ganesh/gl/GrGLBackendSurface.h"
 #include "include/gpu/ganesh/gl/GrGLDirectContext.h"
-#include "include/ports/SkFontMgr_directory.h"
+#include "include/ports/SkFontMgr_ohos.h"
 #include "modules/skshaper/include/SkShaper.h"
 #include "modules/skshaper/include/SkShaper_harfbuzz.h"
 #include "modules/skshaper/include/SkShaper_skunicode.h"
@@ -37,7 +37,6 @@ namespace {
 
 constexpr int32_t APP_LOG_DOMAIN = 0x3201;
 constexpr const char* APP_LOG_TAG = "SkiaXComponent";
-constexpr const char* SYSTEM_FONT_DIR = "/system/fonts";
 constexpr const char* PREFERRED_SC_FONT = "/system/fonts/HarmonyOS_Sans_SC.ttf";
 constexpr const char* ALT_SC_FONT = "/system/fonts/FZHeiT-SC-Regular.ttf";
 constexpr const char* CJK_FONT = "/system/fonts/NotoSansCJK-Regular.ttc";
@@ -80,26 +79,21 @@ bool EnsureTypeface(RendererState& state)
         return true;
     }
     if (!state.fontMgr) {
-        state.fontMgr = SkFontMgr_New_Custom_Directory(SYSTEM_FONT_DIR);
+        state.fontMgr = SkFontMgr_New_OHOS();
         if (!state.fontMgr || state.fontMgr->countFamilies() == 0) {
             OH_LOG_Print(LOG_APP, LOG_ERROR, APP_LOG_DOMAIN, APP_LOG_TAG,
-                "failed to load fonts from %{public}s", SYSTEM_FONT_DIR);
+                "failed to load fonts from SkFontMgr_New_OHOS");
             return false;
         }
     }
-    state.typeface = state.fontMgr->makeFromFile(PREFERRED_SC_FONT);
-    if (!state.typeface) {
-        OH_LOG_Print(LOG_APP, LOG_WARN, APP_LOG_DOMAIN, APP_LOG_TAG,
-            "failed to load preferred font %{public}s, fallback to default family", PREFERRED_SC_FONT);
-        state.typeface = state.fontMgr->legacyMakeTypeface(nullptr, SkFontStyle());
-    }
+    state.typeface = state.fontMgr->legacyMakeTypeface(nullptr, SkFontStyle());
     if (!state.typeface) {
         OH_LOG_Print(LOG_APP, LOG_ERROR, APP_LOG_DOMAIN, APP_LOG_TAG,
-            "failed to create typeface from %{public}s", SYSTEM_FONT_DIR);
+            "failed to create typeface from SkFontMgr_New_OHOS");
         return false;
     }
     OH_LOG_Print(LOG_APP, LOG_INFO, APP_LOG_DOMAIN, APP_LOG_TAG,
-        "font manager ready families=%{public}d font=%{public}s", state.fontMgr->countFamilies(), PREFERRED_SC_FONT);
+        "font manager ready families=%{public}d source=SkFontMgr_New_OHOS", state.fontMgr->countFamilies());
     return true;
 }
 
@@ -383,7 +377,7 @@ void DrawGpuScene(RendererState& state)
     SkFont infoFont(state.typeface, std::max(22.0f, hf * 0.03f));
     infoFont.setSubpixel(true);
     canvas->drawString("GPU direct multi-font rendering", padding + 36.0f, padding + 154.0f, infoFont, bodyPaint);
-    canvas->drawString("Font source: /system/fonts", padding + 36.0f, padding + 194.0f, infoFont, bodyPaint);
+    canvas->drawString("Font source: SkFontMgr_New_OHOS()", padding + 36.0f, padding + 194.0f, infoFont, bodyPaint);
 
     const float sampleTop = padding + 248.0f;
     const float lineGap = std::max(66.0f, hf * 0.075f);

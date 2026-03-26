@@ -109,3 +109,53 @@ It now proves:
 1. Promote the new `libskia.so` into `skia_OHOS`.
 2. Replace the current HAP text demo with a true HarfBuzz-shaped text demo.
 3. Start the next phase on OHOS-specific font management and platform glue.
+
+## Phase 4 Update: NativeDrawing-based OHOS Font Manager
+
+### What changed
+
+- `SkFontMgr_ohos` no longer treats `/system/etc/fontconfig*.json` parsing as the primary source.
+- The OHOS font manager now prefers official NativeDrawing interfaces:
+  - `OH_Drawing_GetSystemFontConfigInfo`
+  - `OH_Drawing_CreateFontParser`
+  - `OH_Drawing_FontParserGetSystemFontList`
+  - `OH_Drawing_FontParserGetFontByName`
+- `font_dir`, generic alias mapping, and fallback families are now obtained from the system through the OHOS API layer first.
+- `libnative_drawing.so` is now linked into the `fontmgr_ohos` build target.
+
+### Why this matters
+
+- The previous JSON parsing approach was useful for early bring-up, but it was fragile:
+  - it depended on file layout details
+  - it duplicated logic that the platform already exposes via API
+- The new route is closer to a real platform adaptation:
+  - system font configuration comes from official OHOS interfaces
+  - `Skia` still uses its own FreeType / HarfBuzz / ICU stack for rendering
+  - but font discovery and alias/fallback metadata now come from the platform API first
+
+### Validation result
+
+- `lycium` build remained successful after linking `libnative_drawing.so`
+- device `ohos_text_smoke` result:
+
+```text
+font_families=235
+alias_harmonyos_sans=1
+alias_serif=1
+fallback_cjk=1
+pixel_checksum=18319541926308614285
+```
+
+- device `ohos_shaper_smoke` result:
+
+```text
+font_families=235
+shaper=shaper_driven_wrapper
+pixel_checksum=8004268475873723857
+```
+
+### Current conclusion
+
+- OHOS font management has now entered source-level platform adaptation.
+- The current implementation is no longer “read config file and hope it matches the system”.
+- It is now “NativeDrawing API first, directory fallback only when the platform data is unavailable”.
