@@ -1,6 +1,6 @@
 # skia_OHOS
 
-`skia_OHOS` 是一个 HarmonyOS ArkTS 验证工程，用来验证 `Skia` 在 HarmonyOS 上的当前接入结果。
+`skia_OHOS` 是一个 HarmonyOS ArkTS 验证工程，用来验证 `Skia` 在 HarmonyOS 上的接入结果。
 
 相关仓库：
 - ArkTS 示例工程：`https://github.com/NormanFxxkingRockwell/skia_OHOS.git`
@@ -12,20 +12,21 @@
 记录日期：
 - `2026-03-26`
 
-## 当前状态
+## 当前结论
 
-当前已经完成：
-- `Phase 0`：基础 OHOS 化与最小构建验证
-- `Phase 1`：ArkTS 工程接入与可见渲染验证
-- `Phase 2`：GPU direct rendering 真机验证
-- `Phase 3`：`freetype + harfbuzz + ICU + shaped text` 真机验证
-- `Phase 4`：已进入源码级平台适配，第一项 `OHOS` 专用字体管理入口已完成第一版
+截至当前：
+- `Phase 0` 已完成：基础 OHOS 化与最小构建验证
+- `Phase 1` 已完成：ArkTS 工程接入与可见渲染验证
+- `Phase 2` 已完成：GPU direct rendering 真机验证
+- `Phase 3` 已完成：`freetype + harfbuzz + ICU + shaped text` 真机验证
+- `Phase 4` 已进入源码级平台适配，当前重点在 `SkFontMgr_ohos`
 
-当前项目定位：
-- 已经不是“只编译通过”
-- 已经不是“只有 smoke test”
-- 当前是“`Skia` 的 GPU + shaped text 已在真机 HAP 中真实落地验证”
-- 但还不是完整的平台深度适配
+最新里程碑：
+- `SkFontMgr_ohos` 已从“目录扫描 / 手读配置”推进到“OHOS NativeDrawing 官方接口优先”
+- 当前已经补上：
+  - `bcp47` 语言感知 fallback
+  - `groupName + familyName` 更细匹配
+- 最新增强已完成 HAP 回归，没有打坏 `gpu_direct`
 
 ## 阶段计划
 
@@ -44,8 +45,9 @@
 - [x] 4.4 识别源码级平台适配点
 - [x] 第一项源码级平台工作：
   `SkFontMgr_ohos`
-- [x] `SkFontMgr_ohos` 已从“手读系统配置文件”切到“OHOS NativeDrawing 官方接口优先”
-- [ ] 语言匹配与更细的 fallback 策略
+- [x] `SkFontMgr_ohos` 已切到 `OHOS NativeDrawing` 官方接口优先
+- [x] `SkFontMgr_ohos` 已补 `bcp47` 语言感知 fallback
+- [x] `SkFontMgr_ohos` 已补 `groupName + familyName` 更细匹配
 - [ ] 第二项源码级平台工作：
   `OHOS window / surface context`
 
@@ -119,14 +121,16 @@
 ### 4. 字体管理入口适配
 
 - 新增 `SkFontMgr_ohos`
-- 第一版完成了 `OHOS` 专用字体管理入口
-- 当前主路径已经改成：
+- 当前主路径已经是：
   `OHOS NativeDrawing 官方接口优先`
 - 当前优先使用的官方接口包括：
   - `OH_Drawing_GetSystemFontConfigInfo`
   - `OH_Drawing_CreateFontParser`
   - `OH_Drawing_FontParserGetSystemFontList`
   - `OH_Drawing_FontParserGetFontByName`
+- 当前又补上了：
+  - `bcp47` 语言感知 fallback
+  - `groupName + familyName` 更细匹配
 
 当前含义：
 - 系统字体目录、generic alias、fallback 信息优先来自平台接口
@@ -145,15 +149,43 @@
 - `skia_OHOS` HAP shaped text 接入
 - `SkFontMgr_ohos`
 - `NativeDrawing` 官方字体接口优先
+- `bcp47` 语言感知 fallback
+- `groupName + familyName` 更细匹配
 
 ## 当前未实现
 
-- `SkFontMgr_ohos` 的语言匹配精细化
-- 更完整的 fallback 策略
+- `SkFontMgr_ohos` 的更完整 fallback 策略
 - `Skia` 本体中的正式 `OHOS window context / surface context`
 - `src/ports` 层的 OHOS 原生 buffer / image bridge
 - `OHOS` 专用 logging / debug / OS glue
 - Vulkan / Graphite 的 OHOS 路线
+
+## 最新验证结果
+
+### 最新 smoke 结果
+
+```text
+font_families=235
+alias_harmonyos_sans=1
+alias_serif=1
+fallback_cjk=1
+fallback_arabic_lang=1
+fallback_tibetan_lang=1
+pixel_checksum=18319541926308614285
+```
+
+### 最新 HAP 回归结果
+
+```text
+OnSurfaceCreated
+surface created size=2030x986 ready=1
+RenderFrame finished frame=0 mode=gpu_direct
+RenderFrame finished frame=1 mode=gpu_direct
+```
+
+说明：
+- 最新字体管理增强没有破坏 `gpu_direct`
+- `skia_OHOS` 仍然可以作为当前 Phase 4 的应用侧验证工程
 
 ## 相关报告
 
@@ -165,36 +197,15 @@
 - [phase4-validation-chain.md](docs/reports/phase4-validation-chain.md)
 - [phase5-candidate-modules.md](docs/reports/phase5-candidate-modules.md)
 
-## 当前结论
+## 下一步
 
-截至 `2026-03-26`：
-- `Phase 2` 已完成
-- `Phase 3` 已完成
-- `Phase 4` 已进入源码级平台适配
-- 当前最新里程碑是：
-  `SkFontMgr_ohos` 已切到 OHOS 官方字体接口优先
+当前最合理的下一步是：
+- 进入第二项源码级平台工作：
+  `OHOS window / surface context`
 
-下一步优先方向：
-- 做 `SkFontMgr_ohos` 的语言匹配和 fallback 精细化
-- 然后进入 `OHOS window / surface context` 的源码级平台适配
-## 2026-03-26 最新同步
+也就是把现在主要由 `skia_OHOS` 应用侧承接的：
+- `XComponent`
+- `NativeWindow`
+- `EGLSurface / lifecycle`
 
-- 已同步最新 `libskia.so`
-- 已完成 `SkFontMgr_ohos` 最新版本的 HAP 回归
-- 当前字体管理已推进到：
-  - `OHOS NativeDrawing` 官方接口优先
-  - `bcp47` 语言感知 fallback
-  - `groupName + familyName` 更细匹配
-
-本轮 HAP 回归结果：
-
-```text
-OnSurfaceCreated
-surface created size=2030x986 ready=1
-RenderFrame finished frame=0 mode=gpu_direct
-RenderFrame finished frame=1 mode=gpu_direct
-```
-
-这说明：
-- 最新字体管理增强没有破坏 `gpu_direct`
-- `skia_OHOS` 仍然可以作为当前 Phase 4 的应用侧验证工程
+进一步梳理成 `Skia` 本体里更正式的 OHOS 平台入口。
