@@ -1,14 +1,27 @@
 # skia_OHOS 构建与验证手册
 
-这份文档记录当前 `Skia on OHOS` 的有效构建、同步、打包和验证方式。
+最后更新：`2026-03-30`
+
+## 修改日志
+
+- `2026-03-30`
+  - 清理历史追加内容，改为当前快照版本
+  - 补充 native 重构后的目录结构与同步规则
+  - 补充最新 HAP 打包、安装、启动与日志回归结果
+
+## 文档定位
+
+本文档只记录当前有效的构建、同步、打包和验证方式，不保留历史过程记录。
 
 ## 仓库分工
 
 主适配仓库：
+
 - `ho-thirdparty-porting`
-- 这里才是 `Skia` 的真实工作树和 `lycium` 主构建入口
+- `Skia` 的真实工作树和 `lycium` 主构建入口都在这里
 
 验证工程：
+
 - `skia_OHOS`
 - 这里只负责：
   - 同步产物
@@ -16,8 +29,9 @@
   - 真机界面验证
 
 对外同步仓库：
+
 - `skia`
-- 这里用于同步 `Skia` 本体的 OHOS 改动，以及 `lycium` 配置说明
+- 用于同步 `Skia` 本体的 OHOS 改动，以及 `lycium` 配置说明
 
 ## 当前主构建方式
 
@@ -110,7 +124,7 @@ LIB_NAME=Skia PKGNAME=skia RECIPE_SCOPE=community ARCH=arm64-v8a bash scripts/ru
 
 - `D:\deveco\DevEco Studio\sdk\default\openharmony\toolchains\hdc.exe`
 
-不要再用 WSL 侧 `command-line-tools` 里的 `hdc`。
+不要使用 WSL 侧 `command-line-tools` 里的 `hdc`。
 
 典型步骤：
 
@@ -134,6 +148,8 @@ font_families=235
 alias_harmonyos_sans=1
 alias_serif=1
 fallback_cjk=1
+fallback_arabic_lang=1
+fallback_tibetan_lang=1
 pixel_checksum=18319541926308614285
 ```
 
@@ -152,10 +168,31 @@ pixel_checksum=8004268475873723857
 
 如果应用侧调用方式变化，还要同步：
 
-- `entry/src/main/cpp/napi_init.cpp`
 - `entry/src/main/cpp/CMakeLists.txt`
+- `entry/src/main/cpp/napi_init.cpp`
+- `entry/src/main/cpp/renderer/render_log.h`
+- `entry/src/main/cpp/renderer/renderer_state.h`
+- `entry/src/main/cpp/renderer/skia_scene_renderer.h`
+- `entry/src/main/cpp/renderer/skia_scene_renderer.cpp`
+- `entry/src/main/cpp/renderer/skia_gpu_renderer.h`
+- `entry/src/main/cpp/renderer/skia_gpu_renderer.cpp`
+- `entry/src/main/cpp/renderer/xcomponent_bridge.h`
+- `entry/src/main/cpp/renderer/xcomponent_bridge.cpp`
 
-## skia_OHOS 当前 native 链接规则
+## skia_OHOS 当前 native 工程结构
+
+- `napi_init.cpp`
+  - 仅负责 NAPI 模块注册与导出绑定
+- `renderer/xcomponent_bridge.cpp`
+  - 管理 `XComponent` 生命周期与 native 桥接
+- `renderer/skia_gpu_renderer.cpp`
+  - 管理 `EGL`、`GrDirectContext`、`SkSurface`
+- `renderer/skia_scene_renderer.cpp`
+  - 管理图形与文字场景绘制
+- `renderer/renderer_state.h`
+  - 管理共享渲染状态
+
+## 当前 native 链接规则
 
 当前 `entry/src/main/cpp/CMakeLists.txt` 里，应用侧 shaping 路线要链接：
 
@@ -216,6 +253,7 @@ $hdc='D:\deveco\DevEco Studio\sdk\default\openharmony\toolchains\hdc.exe'
 当前已知正确日志特征：
 
 ```text
+native xcomponent callbacks registered
 OnSurfaceCreated
 surface created size=2030x986 ready=1
 font manager ready families=235 source=SkFontMgr_New_OHOS
@@ -225,18 +263,17 @@ RenderFrame finished frame=1 mode=gpu_direct
 
 ## 当前阶段判断
 
-Phase 2：
-- 已完成
-- GPU direct rendering 已在真机验证通过
-
-Phase 3：
-- 已完成
-- `freetype + harfbuzz + ICU + shaping smoke` 已在真机验证通过
-- `skia_OHOS` 已完成 shaped text 路线接入，并且 HAP 打包通过
-
-Phase 4：
-- 已开始并完成第一项源码级平台工作
-- `SkFontMgr_ohos` 已切到 OHOS 官方字体接口优先
+- `Phase 2`
+  - 已完成
+  - GPU direct rendering 已在真机验证通过
+- `Phase 3`
+  - 已完成
+  - `freetype + harfbuzz + ICU + shaping smoke` 已在真机验证通过
+  - `skia_OHOS` 已完成 shaped text 路线接入，并且 HAP 打包通过
+- `Phase 4`
+  - 已开始并完成第一项源码级平台工作
+  - `SkFontMgr_ohos` 已切到 OHOS 官方字体接口优先
+  - `skia_OHOS` native 已完成第一轮工程化拆分并回归通过
 
 ## 常见坑
 
@@ -248,31 +285,9 @@ Phase 4：
 
 ## 默认续做顺序
 
-后续继续时，默认按这个顺序走：
-
 1. 在 `ho-thirdparty-porting` 修改 `Skia` 或 recipe
 2. 通过 `lycium` 重编
 3. 用 smoke test 在真机上验证
 4. 把产物同步到 `skia_OHOS`
 5. 打 HAP
 6. 真机安装并验证
-## 2026-03-26 最新同步
-
-- 最新 `SkFontMgr_ohos` 已同步到 `skia_OHOS`
-- HAP 已完成一轮回归验证
-- 当前除了“官方接口优先”之外，还要记住：
-  - 字体 fallback 已经接入 `bcp47` 语言匹配
-  - `groupName + familyName` 匹配已经增强
-
-当前新增真机 smoke 结果：
-
-```text
-fallback_arabic_lang=1
-fallback_tibetan_lang=1
-```
-
-如果后续继续同步到 `skia_OHOS`，优先检查：
-
-- `skia/prebuilt/arm64-v8a/libskia.so`
-- `skia/include/ports/SkFontMgr_ohos.h`
-- HAP 回归是否仍然保持 `gpu_direct`

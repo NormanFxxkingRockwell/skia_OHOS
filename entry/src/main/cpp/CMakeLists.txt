@@ -24,7 +24,11 @@ add_library(skia SHARED IMPORTED)
 set_target_properties(skia PROPERTIES
                       IMPORTED_LOCATION ${SKIA_LIB_DIR}/libskia.so)
 
-add_library(entry SHARED napi_init.cpp)
+add_library(entry SHARED
+                      napi_init.cpp
+                      renderer/skia_scene_renderer.cpp
+                      renderer/skia_gpu_renderer.cpp
+                      renderer/xcomponent_bridge.cpp)
 target_compile_features(entry PRIVATE cxx_std_17)
 target_link_libraries(entry PUBLIC
                       libace_napi.z.so

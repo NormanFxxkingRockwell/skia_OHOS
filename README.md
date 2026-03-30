@@ -1,5 +1,15 @@
 # skia_OHOS
 
+最后更新：`2026-03-30`
+
+## 修改日志
+
+- `2026-03-30`
+  - 清理历史叠加内容，统一为当前快照版本
+  - 更新到 `Phase 4` 当前实际状态
+  - 补充 native 工程化拆分后的代码结构
+  - 补充调用链文档入口
+
 `skia_OHOS` 是一个 HarmonyOS ArkTS 验证工程，用来验证 `Skia` 在 HarmonyOS 上的接入结果。
 
 相关仓库：
@@ -10,7 +20,7 @@
   基线分支：`chrome/m146`
 
 记录日期：
-- `2026-03-26`
+- `2026-03-30`
 
 ## 当前结论
 
@@ -27,6 +37,7 @@
   - `bcp47` 语言感知 fallback
   - `groupName + familyName` 更细匹配
 - 最新增强已完成 HAP 回归，没有打坏 `gpu_direct`
+- `skia_OHOS` native 侧已完成第一轮工程化拆分，`napi_init.cpp` 不再承载全部渲染逻辑
 
 ## 阶段计划
 
@@ -89,6 +100,19 @@
 - 图形内容由 `Skia` 绘制
 - 文本内容由 `Skia + HarfBuzz + ICU` shaping 后绘制
 - 屏幕显示由 `XComponent + NativeWindow + EGL/GLES` 承载
+
+当前 native 代码结构已经拆分为：
+
+- `napi_init.cpp`
+  - 只负责 NAPI 模块注册与导出绑定
+- `renderer/xcomponent_bridge.cpp`
+  - 负责 `XComponent` 回调注册、surface 生命周期和桥接
+- `renderer/skia_gpu_renderer.cpp`
+  - 负责 `EGL`、`GrDirectContext`、`SkSurface` 和帧提交
+- `renderer/skia_scene_renderer.cpp`
+  - 负责字体准备、shaping 和实际场景绘制
+- `renderer/renderer_state.h`
+  - 负责共享渲染状态
 
 ## 当前适配点
 
@@ -196,6 +220,7 @@ RenderFrame finished frame=1 mode=gpu_direct
 - [phase4-platform-boundary.md](docs/reports/phase4-platform-boundary.md)
 - [phase4-validation-chain.md](docs/reports/phase4-validation-chain.md)
 - [phase5-candidate-modules.md](docs/reports/phase5-candidate-modules.md)
+- [skia-render-call-chain.md](docs/skia-render-call-chain.md)
 
 ## 下一步
 

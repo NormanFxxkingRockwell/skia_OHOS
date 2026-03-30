@@ -1,190 +1,84 @@
-# Skia Deep Adaptation Progress
+# Skia 深度适配进展
 
-## Date
+最后更新：`2026-03-30`
 
-- 2026-03-25
+## 修改日志
 
-## Current Stage
+- `2026-03-30`
+  - 清理历史追加内容，改为当前快照版本
+  - 收敛到当前 Phase 4 的实际状态
+  - 补充 `SkFontMgr_ohos` 和 `skia_OHOS` native 重构的最新验证结论
 
-- The work is now at the end of Phase 3.
-- The main worktree is still `libs/Skia`.
-- The primary build path is still `lycium-first`.
+## 当前阶段
 
-## What Changed In This Round
+- 当前主阶段：`Phase 4`
+- 主工作树：`ho-thirdparty-porting/libs/Skia`
+- 主构建路径：`lycium-first`
+- 当前验证工程：`skia_OHOS`
 
-### 1. Lycium dependency caching was added
+## 当前结论
 
-- `tpc_c_cplusplus/community/skia/HPKBUILD` now keeps Skia externals outside the transient `builddir`.
-- Cached dependencies now include:
-  - `freetype`
-  - `harfbuzz`
-  - `icu`
-  - `libpng`
-  - `zlib`
-- `fetch-gn` and `fetch-ninja` are now only invoked when the local tool is missing.
-- Result: repeated rebuilds no longer need to re-download the same dependency set every time.
+截至当前，已经完成的关键里程碑是：
 
-### 2. Phase 3 moved from bidi subset to full ICU Unicode
+- `Phase 2`
+  - `Ganesh + EGL/GLES + XComponent` 的 GPU 直连渲染已在真机验证通过
+- `Phase 3`
+  - `freetype + harfbuzz + ICU + shaped text` 已在真机验证通过
+- `Phase 4`
+  - 第一项源码级平台适配已落地：`SkFontMgr_ohos`
+  - 当前字体主路线已经切到：
+    - `OHOS NativeDrawing` 官方接口优先
+    - `bcp47` 语言感知 fallback
+    - `groupName + familyName` 更细匹配
 
-- The earlier `skia_use_bidi=true` path was enough for minimal font-directory text rendering.
-- It was not enough for full HarfBuzz shaping.
-- Source inspection confirmed that `SkUnicodes::Bidi` leaves important Unicode methods unimplemented, including UTF-8 `computeCodeUnitFlags(...)` and break iterators.
-- The build was therefore moved to:
-  - `skia_use_icu=true`
-  - `skia_use_bidi=false`
-  - `skia_use_harfbuzz=true`
+## 当前有效能力
 
-### 3. HarfBuzz shaping smoke test is now real
+### 1. 构建能力
 
-- `libs/Skia/tools/ohos_shaper_smoke.cpp` now:
-  - prefers `SkUnicodes::ICU::Make()`
-  - uses HarfBuzz shaping instead of plain `drawString`
-  - emits a deterministic pixel checksum after raster readback
-- The smoke test also reports which shaper path succeeded.
+- `lycium` 可稳定构建：
+  - `libskia.so`
+  - `ohos_egl_smoke`
+  - `ohos_text_smoke`
+  - `ohos_shaper_smoke`
 
-## Build Result
+### 2. 图形能力
 
-- WSL build command:
+- `Skia` 已可直接对 OHOS 应用的 GPU 渲染目标绘制
+- 当前主路径为：
+  - `XComponent`
+  - `NativeWindow`
+  - `EGL/GLES`
+  - `GrDirectContext`
+  - `WrapBackendRenderTarget`
+  - `SkSurface`
 
-```bash
-LIB_NAME=Skia PKGNAME=skia RECIPE_SCOPE=community ARCH=arm64-v8a bash scripts/run-lycium-build.sh
-```
+### 3. 文本能力
 
-- Latest successful outputs:
-  - `outputs/Skia/lib/libskia.so`
-  - `outputs/Skia/bin/ohos_egl_smoke`
-  - `outputs/Skia/bin/ohos_text_smoke`
-  - `outputs/Skia/bin/ohos_shaper_smoke`
+- 已恢复：
+  - `FreeType`
+  - `HarfBuzz`
+  - `ICU`
+- 已可完成：
+  - 系统字体发现
+  - shaped text
+  - 多字体样张验证
+  - 真机 HAP 可视化验证
 
-## Device Validation
+### 4. 字体管理能力
 
-- Windows-side `hdc` was used for the device step.
-- Target device:
-  - `3QC0124A24000185`
-- Runtime font directory:
-  - `/system/fonts`
+`SkFontMgr_ohos` 当前已完成：
 
-- Device command:
+- `NativeDrawing` 官方接口优先
+- generic alias 解析
+- fallback family 解析
+- `bcp47` 语言感知 fallback
+- `groupName + familyName` 更细匹配
 
-```sh
-export LD_LIBRARY_PATH=/data/local/tmp:$LD_LIBRARY_PATH
-/data/local/tmp/ohos_shaper_smoke /system/fonts
-```
+## 当前验证结果
 
-- Actual device result:
+### 1. smoke test
 
-```text
-font_families=235
-shaper=shaper_driven_wrapper
-pixel_checksum=8004268475873723857
-```
-
-## Phase 3 Conclusion
-
-- Phase 3 is now functionally complete.
-- The project has moved from:
-  - `freetype + directory font loading + drawString`
-- to:
-  - `freetype + harfbuzz + ICU Unicode + shaped text smoke on device`
-
-This means the work is no longer limited to:
-- source-level entry validation
-- compile-only success
-- non-shaped basic text drawing
-
-It now proves:
-- `lycium` can build a Skia library with HarfBuzz + ICU enabled on OHOS
-- shaped text rendering can execute on a real HarmonyOS device
-- the Phase 3 text stack is no longer blocked on the last runtime issue
-
-## Remaining Gaps After Phase 3
-
-- `skia_OHOS` still needs a HAP-side shaped text demo using the new library.
-- fallback font behavior still needs a more systematic validation matrix.
-- an OHOS-specific font manager path has not been implemented yet.
-- deeper OHOS-native platform glue under `src/ports/` is still future work.
-
-## Recommended Next Step
-
-1. Promote the new `libskia.so` into `skia_OHOS`.
-2. Replace the current HAP text demo with a true HarfBuzz-shaped text demo.
-3. Start the next phase on OHOS-specific font management and platform glue.
-
-## Phase 4 Update: NativeDrawing-based OHOS Font Manager
-
-### What changed
-
-- `SkFontMgr_ohos` no longer treats `/system/etc/fontconfig*.json` parsing as the primary source.
-- The OHOS font manager now prefers official NativeDrawing interfaces:
-  - `OH_Drawing_GetSystemFontConfigInfo`
-  - `OH_Drawing_CreateFontParser`
-  - `OH_Drawing_FontParserGetSystemFontList`
-  - `OH_Drawing_FontParserGetFontByName`
-- `font_dir`, generic alias mapping, and fallback families are now obtained from the system through the OHOS API layer first.
-- `libnative_drawing.so` is now linked into the `fontmgr_ohos` build target.
-
-### Why this matters
-
-- The previous JSON parsing approach was useful for early bring-up, but it was fragile:
-  - it depended on file layout details
-  - it duplicated logic that the platform already exposes via API
-- The new route is closer to a real platform adaptation:
-  - system font configuration comes from official OHOS interfaces
-  - `Skia` still uses its own FreeType / HarfBuzz / ICU stack for rendering
-  - but font discovery and alias/fallback metadata now come from the platform API first
-
-### Validation result
-
-- `lycium` build remained successful after linking `libnative_drawing.so`
-- device `ohos_text_smoke` result:
-
-```text
-font_families=235
-alias_harmonyos_sans=1
-alias_serif=1
-fallback_cjk=1
-pixel_checksum=18319541926308614285
-```
-
-- device `ohos_shaper_smoke` result:
-
-```text
-font_families=235
-shaper=shaper_driven_wrapper
-pixel_checksum=8004268475873723857
-```
-
-### Current conclusion
-
-- OHOS font management has now entered source-level platform adaptation.
-- The current implementation is no longer “read config file and hope it matches the system”.
-- It is now “NativeDrawing API first, directory fallback only when the platform data is unavailable”.
-
-## Phase 4 Update: Language-aware fallback
-
-### What changed
-
-- `SkFontMgr_ohos` now keeps structured fallback entries from OHOS NativeDrawing:
-  - `groupName`
-  - `language`
-  - `familyName`
-- `onMatchFamilyStyleCharacter(...)` no longer ignores the incoming `bcp47` list.
-- The fallback selection now prefers:
-  1. explicit family match
-  2. OHOS language-aware fallback entries
-  3. character-based special fallback
-  4. general fallback family list
-
-### Validation result
-
-- device `ohos_text_smoke` now additionally reports:
-
-```text
-fallback_arabic_lang=1
-fallback_tibetan_lang=1
-```
-
-- full current result:
+当前已知正确的 `ohos_text_smoke` 结果：
 
 ```text
 font_families=235
@@ -196,7 +90,68 @@ fallback_tibetan_lang=1
 pixel_checksum=18319541926308614285
 ```
 
-### Current conclusion
+当前已知正确的 `ohos_shaper_smoke` 结果：
 
-- OHOS font fallback is no longer only “character range based”.
-- The font manager has now started using the platform-provided language metadata to drive fallback choice.
+```text
+font_families=235
+shaper=shaper_driven_wrapper
+pixel_checksum=8004268475873723857
+```
+
+### 2. HAP 回归
+
+`skia_OHOS` 当前已完成：
+
+- HAP 打包成功
+- HAP 安装成功
+- Ability 启动成功
+- `gpu_direct` 日志回归通过
+
+当前已知正确日志：
+
+```text
+native xcomponent callbacks registered
+OnSurfaceCreated
+surface created size=2030x986 ready=1
+font manager ready families=235 source=SkFontMgr_New_OHOS
+RenderFrame finished frame=0 mode=gpu_direct
+RenderFrame finished frame=1 mode=gpu_direct
+```
+
+## 当前工程状态
+
+`skia_OHOS` native 侧已完成第一轮工程化拆分：
+
+- `napi_init.cpp`
+  - 只负责入口和模块注册
+- `renderer/xcomponent_bridge.cpp`
+  - 负责 `XComponent` 生命周期与桥接
+- `renderer/skia_gpu_renderer.cpp`
+  - 负责 `EGL` / `GrDirectContext` / `SkSurface`
+- `renderer/skia_scene_renderer.cpp`
+  - 负责图形、字体和文字场景绘制
+
+这说明当前验证工程已经不再是“把全部逻辑堆在单文件里”的实验状态。
+
+## 当前未完成项
+
+- `Skia` 本体中的正式 `OHOS window / surface context`
+- 更完整的 OHOS 原生 buffer / image bridge
+- 更完整的 `SkFontMgr_ohos` fallback 策略
+- Vulkan / Graphite 的 OHOS 路线
+- 更完整的平台级 logging/debug glue
+
+## 下一步
+
+当前最合理的下一步是：
+
+- 进入第二项源码级平台工作：
+  - `OHOS window / surface context`
+
+也就是把当前还主要由 `skia_OHOS` 承接的：
+
+- `XComponent`
+- `NativeWindow`
+- `EGLSurface / lifecycle`
+
+进一步向 `Skia` 本体里的正式平台入口推进。
